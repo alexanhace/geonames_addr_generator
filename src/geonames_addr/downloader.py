@@ -7,6 +7,7 @@ class GeoDownloader:
     """Downloads and manages GeoNames postal code files."""
 
     BASE_URL = 'https://download.geonames.org/export/zip/'
+    FULL_ZIP_COUNTRIES = {'CA', 'GB', 'NL'}
 
     def __init__(self, data_dir='data', max_age_days=30):
         self.data_dir = Path(data_dir)
@@ -15,7 +16,7 @@ class GeoDownloader:
 
     def get_country_file(self, country_code, force=False):
         """Return path to country file, downloading if needed."""
-        txt_path = self.data_dir / f"{country_code}.txt"
+        txt_path = self.data_dir / f"{country_code}_full.txt" if country_code in self.FULL_ZIP_COUNTRIES else f"{country_code}.txt"
 
         if not force and not self._is_stale(txt_path):
             return txt_path
@@ -30,9 +31,8 @@ class GeoDownloader:
         return file_age > (self.max_age_days * 86400)
     
     def _downlaod_and_extract(self, country_code):
-        FULL_ZIP_COUNTRIES = {'CA', 'GB', 'NL'}
 
-        zip_name = f"{country_code}_full.csv.zip" if country_code in FULL_ZIP_COUNTRIES else f"{country_code}.zip"
+        zip_name = f"{country_code}_full.csv.zip" if country_code in self.FULL_ZIP_COUNTRIES else f"{country_code}.zip"
             
         zip_path = self.data_dir / zip_name
         url = f"{self.BASE_URL}{zip_name}"
