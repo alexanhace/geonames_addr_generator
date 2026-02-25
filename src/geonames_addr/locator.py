@@ -1,5 +1,9 @@
+import logging
 import pandas as pd
+from pathlib import Path
 from .downloader import GeoDownloader
+
+logger = logging.getLogger(__name__) # "geonames.locator"
 
 class GeoLocator:
     """This class returns a random address based on the country code from data downloaded from www.geonames.org
@@ -14,10 +18,13 @@ class GeoLocator:
     ]
 
     def __init__(self, country_codes, data_dir='data', max_age_days=30):
+        self.data_dir = Path(data_dir)
         self._downloader = GeoDownloader(data_dir, max_age_days)
         self._frames = {}
+        logger.debug(f"Geolocator created with data_dir: {self.data_dir}")
 
         for code in country_codes:
+            logger.info(f"Loading country: {code}")
             self._frames[code] = self._load_country(code)
 
     def _load_country(self, country_code, force=False):
@@ -25,15 +32,22 @@ class GeoLocator:
         return self._parse(txt_path)
         
     def _parse(self, txt_path):
-        return pd.read_csv(
-            txt_path, sep='\t', header=None, names=self.COLUMN_NAMES,
-            dtype=str, low_memory=False
-        )
+        try:
+            df = pd.read_csv(
+                txt_path, sep='\t', header=None, names=self.COLUMN_NAMES,dtype=str, low_memory=False
+            )
+            logger.info(f"Parsed {len(df):,} records from {txt_path}")
+            return df
+        except Exception:
+            logger.exception(f"Failed to parse {txt_path}")
+            raise
     
     def get_random_location(self, country_code):
         if country_code not in self._frames:
+            logger.warning(f"Requested country not loaded: {country_code!r}")
             raise ValueError(f"Country '{country_code}' not loaded.")
         row = self._frames[country_code].sample(1).iloc[0]
+        logger.debug(f"Returning location: {row['place_name']}, {row['admin_name1']}")
         return {
             'country': row['country_code'],
             'postal_code': row['postal_code'],
@@ -46,10 +60,14 @@ class GeoLocator:
     
     def add_country(self, country_code):
         if country_code not in self._frames:
+            logger.info(f"Adding country: {country_code}")
             self._frames[country_code] = self._load_country(country_code)
+        else:
+            logger.debug(f"Country already loaded, skipping: {country_code}")
     
     def refresh(self, country_code=None):
         codes = [country_code] if country_code else list(self._frames.keys())
+        logger.info(f"Refreshing data for: {codes}")
         for code in codes:
             self._frames[code] = self._load_country(code, force=True)
     
